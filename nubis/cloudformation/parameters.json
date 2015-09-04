@@ -9,7 +9,7 @@
   }, 
   {
     "ParameterKey": "SSHKeyName",
-    "ParameterValue": "key"
+    "ParameterValue": "fubar"
   },
   {
     "ParameterKey": "TechnicalOwner",
@@ -17,6 +17,10 @@
   },
   {
     "ParameterKey": "AmiId",
-    "ParameterValue": "ami-abcdef123"
+    "ParameterValue": "ami-99786aa9"
+  },
+  {
+    "ParameterKey": "StacksVersion",
+    "ParameterValue": "v1.0.0"
   }
 ]

@@ -7,7 +7,7 @@
     ],
     "project_description": "BMO on AWS",
     "project_name": "bugzilla",
-    "project_version": "0.10",
+    "project_version": "0.12",
     "source_ami_project_name": "nubis-base"
   }
 }
