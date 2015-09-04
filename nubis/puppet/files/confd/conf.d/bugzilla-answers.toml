@@ -1,0 +1,8 @@
+[template]
+src = "bugzilla-answers.tmpl"
+dest = "/var/www/bugzilla/answers.txt"
+prefix = "/%%STACK%%/%%ENVIRONMENT%%"
+
+keys = [
+    "/config"
+]

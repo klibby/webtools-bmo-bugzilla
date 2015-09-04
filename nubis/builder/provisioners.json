@@ -1,0 +1,26 @@
+{
+"provisioners": [
+  {
+    "type": "shell",
+    "inline": [
+        "sudo mkdir -p -m 755 /var/www/bugzilla",
+        "sudo chown ec2-user:ec2-user /var/www/bugzilla"
+    ],
+    "order": "1"
+  },
+  {
+    "type": "file",
+    "source": "./",
+    "destination": "/var/www/bugzilla",
+    "order": "2"
+  },
+  {
+    "type": "shell",
+    "inline": [
+       "sudo /usr/local/bin/bugzilla-install-dependencies",
+       "sudo perl -I/var/www/bugzilla /var/www/bugzilla/checksetup.pl /var/www/bugzilla/answers.txt"
+    ],
+    "order": "20"
+  }
+]
+}

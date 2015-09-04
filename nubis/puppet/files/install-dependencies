@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Exit if anything fails
+set -e
+
+# cpanm installs in /var/www/bugzilla/lib/perl5 (local::lib) friendly, but Bugzilla doesn't expect that
+if [ ! -L "/var/www/bugzilla/lib/perl5" ]; then
+  cd /var/www/bugzilla/lib
+  ln -s . perl5
+fi
+
+for pkg in \
+   Math::Random::ISAAC \
+   File::MimeInfo::Magic \
+   Daemon::Generic \
+   Crypt::OpenPGP \
+   Crypt::SMIME \
+   TheSchwartz \
+   Any::URI::Escape \
+   Chart::Base \
+   HTTP::Lite \
+   JSON::RPC \
+   PatchReader \
+   Authen::Radius \
+   Template::Plugin::GD \
+   Math::BigInt \
+   ElasticSearch@0.68 \
+   Test::Number::Delta \
+   Math::Random::MT \
+   Devel::StackTrace \
+   Convert::Base32 \
+   Auth::GoogleAuth \
+  ; do
+  echo "Installing $pkg"
+  cpanm -l /var/www/bugzilla $pkg
+done

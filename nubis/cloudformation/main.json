@@ -1,0 +1,349 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Nubis version of bugzilla.mozilla.org",
+  "Parameters": {
+    "ServiceName": {
+      "Description": "Name of the service",
+      "Type": "String"
+    },
+    "Environment": {
+      "Description": "Environment we are deploying into",
+      "Default": "sandbox",
+      "Type": "String",
+      "AllowedValues": [
+        "prod",
+        "stage",
+        "sandbox"
+      ],
+      "ConstraintDescription": "Must specify prod, stage, or sandbox."
+    },
+    "BaseZone": {
+      "Description": "Base zone to create route53 zone in",
+      "Default": "nubis.allizom.org",
+      "Type": "String"
+    },
+    "SSHKeyName": {
+      "Description": "Existing ssh key to deploy to EC2 instances",
+      "Type": "String"
+    },
+    "TechnicalOwner": {
+      "Description": "A valid LDAP email",
+      "Type": "String"
+    },
+    "AmiId": {
+      "Description": "The id of the ami for this region",
+      "Type": "String"
+    },
+    "StorageVolumeSize": {
+      "Description": "The storage size (in GB) of each member of the storage cluster",
+      "Type": "String",
+      "Default": "30"
+    },
+    "StacksVersion": {
+      "Description": "Version of the Nubis Stacks",
+      "Type": "String",
+      "Default": "v1.0.0"
+    }
+  },
+  "Mappings": {
+    "InstanceTypeMap": {
+      "prod": {
+        "InstanceType": "m3.medium"
+      },
+      "stage": {
+        "InstanceType": "m3.medium"
+      },
+      "sandbox": {
+        "InstanceType": "t2.small"
+      }
+    }
+  },
+  "Resources": {
+    "EC2Stack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "ec2.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "StackName": {
+            "Ref": "AWS::StackName"
+          },
+          "ServiceName": {
+            "Ref": "ServiceName"
+          },
+          "TechnicalOwner": {
+            "Ref": "TechnicalOwner"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "AmiId": {
+            "Ref": "AmiId"
+          },
+          "SSHKeyName": {
+            "Ref": "SSHKeyName"
+          },
+          "InstanceType": {
+            "Fn::FindInMap": [
+              "InstanceTypeMap",
+              {
+                "Ref": "Environment"
+              },
+              "InstanceType"
+            ]
+          },
+          "ELB": {
+            "Fn::GetAtt": [
+              "ELBStack",
+              "Outputs.ELB"
+            ]
+          },
+          "AutoScalingGroupMinSize": "2",
+          "AutoScalingGroupDesiredCapacity": "2",
+          "AutoScalingGroupMaxSize": "6"
+        }
+      }
+    },
+    "AutoScalingStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "autoscaling-cpu.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "AutoScalingGroup": {
+            "Fn::GetAtt": [
+              "EC2Stack",
+              "Outputs.AutoScalingGroup"
+            ]
+          }
+        }
+      }
+    },
+    "ELBStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "elb.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "ServiceName": {
+            "Ref": "ServiceName"
+          },
+          "TechnicalOwner": {
+            "Ref": "TechnicalOwner"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "ElbHealthTarget": "HTTP:80/?no-ssl-rewrite&elb-health-check"
+        }
+      }
+    },
+    "RDSStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "rds-mysql.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "ServiceName": {
+            "Ref": "ServiceName"
+          },
+          "TechnicalOwner": {
+            "Ref": "TechnicalOwner"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "AllocatedStorage": "15",
+          "DBInstanceClass": "db.t2.medium",
+          "DBName": "bugzilla",
+          "EC2SecurityGroup": {
+            "Fn::GetAtt": [
+              "EC2Stack",
+              "Outputs.EC2SecurityGroup"
+            ]
+          }
+        }
+      }
+    },
+    "MemcacheStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "memcache.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "ServiceName": {
+            "Ref": "ServiceName"
+          },
+          "TechnicalOwner": {
+            "Ref": "TechnicalOwner"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "EC2SecurityGroup": {
+            "Fn::GetAtt": [
+              "EC2Stack",
+              "Outputs.GroupId"
+            ]
+          }
+        }
+      }
+    },
+    "Route53Stack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "route53.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "DNSName": {
+            "Ref": "AWS::StackName"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "BaseZone": {
+            "Ref": "BaseZone"
+          },
+          "ELBStack": {
+            "Fn::GetAtt": [
+              "ELBStack",
+              "Outputs.DNSName"
+            ]
+          }
+        }
+      }
+    },
+    "StorageStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": { "Fn::Join": [ "/", [ "https://s3.amazonaws.com/nubis-stacks", { "Ref": "StacksVersion" }, "storage.template" ] ] },
+        "TimeoutInMinutes": "60",
+        "Parameters": {
+          "StackName": {
+            "Ref": "AWS::StackName"
+          },
+          "ServiceName": {
+            "Ref": "ServiceName"
+          },
+          "TechnicalOwner": {
+            "Ref": "TechnicalOwner"
+          },
+          "Environment": {
+            "Ref": "Environment"
+          },
+          "SSHKeyName": {
+            "Ref": "SSHKeyName"
+          },
+          "VolumeSize": {
+            "Ref": "StorageVolumeSize"
+          },
+          "InstanceType": "m3.medium",
+          "EC2SecurityGroup": {
+            "Fn::GetAtt": [
+              "EC2Stack",
+              "Outputs.GroupId"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ELBDNSName": {
+      "Description": "Consul: / ELB CNAME",
+      "Value": {
+        "Fn::GetAtt": [
+          "ELBStack",
+          "Outputs.DNSName"
+        ]
+      }
+    },
+    "Environment": {
+      "Description": "Consul: config/ Environment we are deployed into",
+      "Value": {
+        "Ref": "Environment"
+      }
+    },
+    "Server": {
+      "Description": "Consul: config/ Server name",
+      "Value": {
+        "Fn::Join": [
+          ".",
+          [
+            "//www",
+            {
+              "Ref": "AWS::StackName"
+            },
+            {
+              "Ref": "Environment"
+            },
+            "nubis.allizom.org"
+          ]
+        ]
+      }
+    },
+    "CanonicalServer": {
+      "Description": "Consul: config/ Server url",
+      "Value": {
+        "Fn::Join": [
+          ".",
+          [
+            "https://www",
+            {
+              "Ref": "AWS::StackName"
+            },
+            {
+              "Ref": "Environment"
+            },
+            "nubis.allizom.org"
+          ]
+        ]
+      }
+    },
+    "DBserver": {
+      "Description": "Consul: config/ Database endpoint",
+      "Value": {
+        "Fn::GetAtt": [
+          "RDSStack",
+          "Outputs.RDSEndpoint"
+        ]
+      }
+    },
+    "DBname": {
+      "Description": "Consul: config/ Database name",
+      "Value": {
+        "Fn::GetAtt": [
+          "RDSStack",
+          "Outputs.RDSName"
+        ]
+      }
+    },
+    "DBuser": {
+      "Description": "Consul: config/ Database user",
+      "Value": {
+        "Fn::GetAtt": [
+          "RDSStack",
+          "Outputs.RDSUser"
+        ]
+      }
+    },
+    "MemCachedEndpoint": {
+      "Description": "Consul: config/ Database user",
+      "Value": {
+        "Fn::GetAtt": [
+          "MemcacheStack",
+          "Outputs.Endpoint"
+        ]
+      }
+    },
+    "MemCachedPort": {
+      "Description": "Consul: config/ Database user",
+      "Value": {
+        "Fn::GetAtt": [
+          "MemcacheStack",
+          "Outputs.Port"
+        ]
+      }
+    }
+  }
+}
